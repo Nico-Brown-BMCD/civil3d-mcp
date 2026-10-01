@@ -74,33 +74,36 @@ Code executed via `civil3d_execute` or `civil3d_query` has access to:
 
 All Civil 3D namespaces are auto-imported.
 
-## Setup
+## Build and Deployment
 
-### 1. Build MCP Server
-```bash
-npm install && npm run build
+### Create a Deployment Package
+Run this on a Windows build machine with the .NET SDK, Node.js/npm, and access to the Civil 3D reference DLLs:
+
+```powershell
+.\scripts\New-Civil3D-DeploymentPackage.ps1
 ```
 
-### 2. Build Plugin
-```bash
-# Copy DLLs from Civil 3D to C_References/ (see C_References/README.md)
-cd plugin/Civil3dMcpPlugin
-dotnet build
-```
+The script finds or copies the required DLLs into `C_References`, builds the plugin and MCP server, and creates `dist/civil3d-mcp-package.zip`. For a nonstandard Autodesk install path, pass `-Civil3DInstallPath "<install folder>"`. The DLLs are build-time references and are not included in the deployment archive.
 
-### 3. Load in Civil 3D
-```
-NETLOAD → select Civil3dMcpPlugin.dll
-C3DMCPSTATUS → verify running
-```
+### Install for Users
+1. Share the generated zip and have the user extract it.
+2. Double-click `Deploy-Civil3D-Package.bat` in the extracted folder. The installer adds the plugin bundle under `%APPDATA%\Autodesk\ApplicationPlugins`, copies the server and skills under `%LOCALAPPDATA%\mcp-servers\civil3d-mcp`, installs Node.js 22 if needed, installs server dependencies, and registers the MCP server in Codex CLI / ChatGPT Desktop's config.
+3. Restart Civil 3D and the MCP client. The Autodesk bundle loads the plugin when Civil 3D starts. If Node.js or server dependencies need downloading, the installer requires internet access.
 
-### 4. Configure AI
+### Runtime Protocol
+The MCP client starts `civil3d-mcp` over stdio. The server forwards tool requests to the plugin over TCP/JSON-RPC at `localhost:8080`. Civil 3D must be running with the plugin loaded for drawing tools to work. Run `C3DMCPSTATUS` in Civil 3D to verify the listener.
+
+For development or troubleshooting, load `Civil3dMcpPlugin.dll` with `NETLOAD`; the build output is under `plugin/Civil3dMcpPlugin/bin/`.
+
+### Configure Other MCP Clients
+The installer registers Codex CLI / ChatGPT Desktop automatically. For another MCP client, configure the absolute path to `node.exe` and the installed server entry point (adjust the Windows user and Node.js version):
+
 ```json
 {
   "mcpServers": {
     "civil3d": {
-      "command": "node",
-      "args": ["/path/to/civil3d-mcp/build/index.js"]
+      "command": "C:\\Users\\<user>\\AppData\\Local\\node-v22.<version>-win-x64\\node.exe",
+      "args": ["C:\\Users\\<user>\\AppData\\Local\\mcp-servers\\civil3d-mcp\\build\\index.js"]
     }
   }
 }
@@ -112,6 +115,7 @@ C3DMCPSTATUS → verify running
 |----------|---------|-------------|
 | `CIVIL3D_HOST` | `localhost` | Plugin host |
 | `CIVIL3D_PORT` | `8080` | Plugin port |
+| `CIVIL3D_CONNECT_TIMEOUT` | `5000` | Connection timeout (ms) |
 | `CIVIL3D_COMMAND_TIMEOUT` | `120000` | Execution timeout (ms) |
 | `LOG_LEVEL` | `info` | Log level |
 
